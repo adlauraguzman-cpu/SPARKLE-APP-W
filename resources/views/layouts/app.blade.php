@@ -78,9 +78,9 @@
     </div>
 
     <!-- Main Navigation Bar -->
-    <header class="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-stone-200 shadow-sm">
+    <header x-data="{ menuAbierto: false }" class="sticky top-0 z-40 bg-white/95 backdrop-blur border-b border-stone-200 shadow-sm">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex items-center justify-between h-16">
+            <div class="flex items-center justify-between h-16 gap-2">
                 <!-- Logo -->
                 <div class="flex items-center gap-8">
                     <a href="{{ route('home') }}" class="flex items-center gap-2 group">
@@ -96,7 +96,7 @@
                     </a>
 
                     <!-- Navigation Links -->
-                    <nav class="hidden md:flex items-center gap-1">
+                    <nav class="hidden xl:flex items-center gap-1">
                         <a href="{{ route('home') }}" class="px-3 py-2 rounded-lg text-sm font-medium {{ request()->routeIs('home') ? 'text-sparkle-700 bg-sparkle-50 font-semibold' : 'text-stone-600 hover:text-stone-900 hover:bg-stone-50' }}">
                             Inicio
                         </a>
@@ -152,19 +152,59 @@
                             </form>
                         </div>
                     @else
-                        <a href="{{ route('configurador.index') }}" class="text-xs font-semibold px-3 py-1.5 text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-lg transition">
+                        <a href="{{ route('configurador.index') }}" class="hidden sm:inline-block text-xs font-semibold px-3 py-1.5 text-stone-700 bg-stone-100 hover:bg-stone-200 rounded-lg transition">
                             Probar sin cuenta
                         </a>
-                        <a href="{{ route('login') }}" class="text-xs font-semibold px-3 py-1.5 text-sparkle-700 hover:bg-sparkle-50 rounded-lg transition">
+                        <a href="{{ route('login') }}" class="hidden sm:inline-block text-xs font-semibold px-3 py-1.5 text-sparkle-700 hover:bg-sparkle-50 rounded-lg transition">
                             Iniciar Sesión
                         </a>
-                        <a href="{{ route('register') }}" class="text-xs font-bold px-3.5 py-1.5 text-white bg-sparkle-600 hover:bg-sparkle-700 shadow-sm rounded-lg transition">
+                        <a href="{{ route('register') }}" class="hidden sm:inline-block text-xs font-bold px-3.5 py-1.5 text-white bg-sparkle-600 hover:bg-sparkle-700 shadow-sm rounded-lg transition">
                             Crear Cuenta
                         </a>
                     @endauth
+
+                    <!-- Botón de menú móvil -->
+                    <button type="button" @click="menuAbierto = ! menuAbierto" :aria-expanded="menuAbierto" aria-controls="menu-movil" aria-label="Abrir menú" class="xl:hidden p-2 rounded-lg text-stone-700 hover:bg-stone-100">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path x-show="! menuAbierto" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                            <path x-show="menuAbierto" x-cloak stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
                 </div>
             </div>
         </div>
+
+        <!-- Menú móvil -->
+        @php
+            $enlacesMovil = [
+                ['Inicio', 'home', 'home'],
+                ['Catálogo de Aromas', 'aromas.index', 'aromas.*'],
+                ['✨ Mi Fórmula (Configurador)', 'configurador.index', 'configurador.*'],
+            ];
+
+            if (Auth::check()) {
+                $enlacesMovil[] = ['🌿 Rutinas', 'rutinas.index', 'rutinas.*'];
+                $enlacesMovil[] = ['📖 Mi Diario', 'diario.index', 'diario.*'];
+
+                if (Auth::user()->isEspecialista()) {
+                    $enlacesMovil[] = ['🧪 Panel Especialista', 'especialista.index', 'especialista.*'];
+                }
+
+                if (Auth::user()->isAdministrador()) {
+                    $enlacesMovil[] = ['⚙️ Panel Admin', 'admin.index', 'admin.*'];
+                }
+            } else {
+                $enlacesMovil[] = ['Iniciar Sesión', 'login', 'login'];
+                $enlacesMovil[] = ['Crear Cuenta', 'register', 'register'];
+            }
+        @endphp
+        <nav id="menu-movil" x-show="menuAbierto" x-cloak class="xl:hidden border-t border-stone-200 bg-white px-4 py-3 space-y-1">
+            @foreach($enlacesMovil as [$texto, $ruta, $patron])
+                <a href="{{ route($ruta) }}" class="block px-3 py-2.5 rounded-lg text-sm font-medium {{ request()->routeIs($patron) ? 'text-sparkle-700 bg-sparkle-50 font-semibold' : 'text-stone-700 hover:bg-stone-50' }}">
+                    {{ $texto }}
+                </a>
+            @endforeach
+        </nav>
     </header>
 
     <!-- Flash Alerts -->
@@ -184,6 +224,17 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
                 <div class="flex-1 font-medium">{{ session('error') }}</div>
+            </div>
+        @endif
+
+        @if($errors->any())
+            <div role="alert" class="p-4 mb-4 text-sm text-red-800 bg-red-50 rounded-xl border border-red-200 shadow-sm">
+                <div class="font-bold">Revisa los siguientes datos:</div>
+                <ul class="mt-1 list-disc list-inside">
+                    @foreach($errors->all() as $mensaje)
+                        <li>{{ $mensaje }}</li>
+                    @endforeach
+                </ul>
             </div>
         @endif
 

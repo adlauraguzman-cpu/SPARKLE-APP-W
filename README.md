@@ -1,97 +1,148 @@
-# SPARKLE · Aplicación Web de Aromas de Autor & Bienestar
+# SPARKLE · Mi Espacio Vitamina
 
-Aplicación web desarrollada en **Laravel 12 / PHP 8.5** sobre **Ubuntu (WSL)** con soporte y gestión de contenedores y bases de datos a través de **Lando**.
+Aplicación web de bienestar olfativo: calcula fórmulas aromáticas personalizadas y seguras a partir de las esencias **ALPHA**, **HELIOS** y **JAZ**, permite programar rutinas y registrar en un diario cómo cambia el estado de ánimo. No es una tienda: no vende ni procesa pagos.
 
-Diseñada y construida siguiendo estrictamente la arquitectura de negocio, roles, flujos y estados de interfaz definidos en los documentos técnicos de SPARKLE.
-
----
-
-## 🏛️ 1. Arquitectura y Roles del Sistema
-
-| Rol | Objetivo | Acceso y Permisos |
-| :--- | :--- | :--- |
-| **Visitante sin registro** | Explorar la marca, entender el kit y decidir si compra. | Inicio, Catálogo, Ficha de producto, Carrito (invitado), Guía de aromas interactiva, Suscripción a la comunidad y Solicitud de aviso si un producto está agotado. *Restricción: No puede pagar sin identificarse.* |
-| **Cliente registrado** | Comprar fácil, repetir su compra y acumular beneficios. | Todo lo del visitante + Checkout y pago, Mis pedidos y seguimiento en vivo, Mis puntos y recompensas (Loyalty Club), Recompra de Refills, Repetición de pedidos y Solicitud de cambio/garantía. |
-| **Colaborador de operación** *(Fase 2)* | Preparar y despachar pedidos sin ver información comercial sensible. | Panel operativo, Inventario por producto, Pedidos (cambiar a «Enviado» registrando transportadora y guía). *Restricción: Oculta precios, costos y totales financieros. Solo ve nombre y dirección de entrega.* |
-| **Administrador** *(Dueña de la marca)* | Operar la tienda, inventario correcto, catálogo vigente y fidelización. | Panel de control completo con KPIs, Inventario con umbrales mínimos y alertas, Catálogo y precios (CRUD), Gestión de pedidos y anulación con auditoría, Moderación de reseñas, Gestión de usuarios y roles. |
+**Tecnologías:** Laravel 13 · PHP 8.4 · MySQL 8.0 (Lando) o SQLite · Blade, Tailwind CSS y Alpine.js (por CDN) · Ubuntu (WSL).
 
 ---
 
-## ⚡ 2. Módulos y Estados de Interfaz Implementados
+## 1. Problema y propuesta de valor
 
-### ✦ Checkout (4 Estados y Variantes de Error)
-* **1 · Reposo (Idle):** Formulario listo con datos del cliente precargados (nombre, WhatsApp, dirección principal), cálculo de envío y puntos a acumular (`+[X] puntos`). Foco automático en el primer campo vacío.
-* **2 · Espera (Loading):** Barra de progreso superior animada, campos bloqueados y botón con spinner de carga: *"Procesando tu pago… No cierres esta ventana"*.
-* **3 · Éxito (Success):** Alerta verde con check, número de pedido `SPK-YYYY-XXXX`, resumen de ítems, puntos pendientes de acreditar y botones hacia *"Ver mi pedido"* o *"Seguir explorando"*.
-* **4 · Error:** Banner rojo con conteo de errores, campos afectados resaltados en rojo con mensajes específicos (*"Falta tu dirección"*, *"Faltan dígitos (10)"*), conservación de datos escritos y foco al primer error.
-* **Variante Pago Rechazado:** Aviso de no cobro bancario, stock reservado y botones de reintento o cambio de medio de pago.
-* **Variante Stock Insuficiente:** Aviso de cambio de disponibilidad con retorno al carrito.
+Quien usa aromas en casa suele elegirlos sin saber cuál conviene a su objetivo ni si es seguro ante alergias, mascotas o embarazo. SPARKLE guía esa decisión en tres pilares:
 
-### ✦ Ajustar Stock de Inventario (4 Estados)
-* **1 · Reposo:** Vista de disponibles, reservados, umbral mínimo y estado (`Stock bajo` vs `Stock al día`). Formulario con tipo (entrada, merma, ajuste), cantidad y motivo.
-* **2 · Espera:** Botón con spinner *"Guardando…"*.
-* **3 · Éxito:** Banner verde de confirmación con delta de unidades (`Pasó de X a Y unidades`) y **notificación automática a los clientes suscritos en lista de espera**.
-* **4 · Error:** Validación de cantidad mayor a cero y motivo obligatorio.
+| Pilar | Qué hace la persona usuaria |
+| :--- | :--- |
+| **1. Conocerme** | Registra su perfil sensorial, de seguridad y sus espacios. |
+| **2. Mi Fórmula** | Calcula una mezcla según objetivo, momento, intensidad, espacio y emoción. |
+| **3. Mi Rutina y Mi Diario** | Programa rituales, sigue su racha y califica cada sesión. |
 
-### ✦ Flujo de Fidelización y Entrega
-1. La compra genera un movimiento de puntos en estado **Pendiente**.
-2. Cuando el Administrador o Colaborador despacha y marca el pedido como **Entregado**, el sistema:
-   - Cambia el movimiento de puntos a **Acreditado**.
-   - Suma los puntos al saldo disponible del cliente.
-   - Habilita la solicitud de **Reseña de producto** y el acceso directo a **Recompra de Refill**.
+## 2. Roles del sistema
 
----
+| Rol | Permisos |
+| :--- | :--- |
+| **Invitado** | Ve el inicio y el catálogo de aromas, y calcula fórmulas sin cuenta. No puede guardarlas. |
+| **Usuario** | Completa su perfil, guarda fórmulas, crea rutinas, usa el reproductor de ritual y lleva su diario. |
+| **Especialista en aromas** | Crea reglas de afinidad (peso de 0 a 3) y aprueba las de otro especialista (*Maker-Checker*: nadie aprueba su propia regla). Ve métricas agregadas. |
+| **Administrador** | Gestiona roles y estado de los usuarios, revisa consentimientos y auditoría, y exporta datos de un usuario. No tiene acceso a los diarios privados. |
 
-## 🚀 3. Instrucciones de Ejecución
+## 3. Motor de fórmulas
 
-### Opción A: Ejecución Directa en WSL (Ubuntu)
-La base de datos SQLite ya se encuentra migrada y sembrada con datos de demostración:
+[`FormulaEngineService`](app/Services/FormulaEngineService.php) trabaja en cinco pasos:
 
-```bash
-# Iniciar servidor local
-php artisan serve
+1. **Seguridad:** descarta los aromas contraindicados por alergias, mascotas o embarazo y lactancia.
+2. **Afinidad:** suma los pesos de las reglas publicadas (objetivo, espacio, momento y emoción).
+3. **Ajuste personal:** considera las familias preferidas o evitadas y las calificaciones del diario.
+4. **Proporciones:** descarta los aportes menores al 10 % y ajusta el total a 100 %.
+5. **Ritual:** sugiere gotas, duración y pasos, con una explicación de la mezcla.
+
+## 4. Estados de interfaz
+
+El configurador, el diario y el panel del especialista muestran cuatro estados: **reposo**, **carga**, **éxito** y **error**. El configurador distingue además tres errores: *faltan respuestas*, *sin fórmula segura* y *falla de cálculo*.
+
+## 5. Base de datos
+
+```text
+users ─┬─ consentimientos
+       ├─ perfiles_sensoriales
+       ├─ perfiles_seguridad
+       ├─ espacios
+       ├─ registros_animo
+       ├─ sesiones ── formulas ── componentes_formula ── aromas ── reglas_afinidad
+       ├─ rutinas ── recordatorios
+       ├─ entradas_diario
+       └─ registros_cambios (auditoría)
 ```
-Abre en tu navegador: [http://localhost:8000](http://localhost:8000)
 
-### Opción B: Ejecución con Lando (MySQL & phpMyAdmin)
-El proyecto incluye el archivo `.lando.yml` configurado con la receta oficial `laravel`, base de datos MySQL 8.0, Redis y el servicio gráfico de **phpMyAdmin**:
+## 6. Diseño visual
+
+| Elemento | Valor |
+| :--- | :--- |
+| Fondo claro | `#FAF8F5` |
+| Ámbar vitamina | `#B88B57` |
+| Botones principales | `#9B6F3E` |
+| Verde salvia | `#5F8565` |
+| Tipografía de texto | Plus Jakarta Sans |
+| Tipografía de acento | Playfair Display |
+
+El diseño es responsivo y en pantallas pequeñas usa un menú desplegable.
+
+---
+
+## 7. Ejecución con Lando (recomendada)
+
+Requisitos: Ubuntu (WSL), Docker Desktop, Lando y conexión a internet.
+
+**Primera vez** (después de clonar el repositorio):
 
 ```bash
-# Iniciar contenedores con Lando
+cp .env.example .env
 lando start
+lando composer install
+lando artisan key:generate
+lando artisan migrate --seed
+```
 
-# Ejecutar migraciones en MySQL de Lando
+**Las veces siguientes:**
+
+```bash
+lando start
+```
+
+| Servicio | Dirección |
+| :--- | :--- |
+| Aplicación | http://sparkle-app-w.lndo.site |
+| phpMyAdmin | http://pma.sparkle-app-w.lndo.site |
+
+En Lando la aplicación usa MySQL (servidor `database`; usuario, contraseña y base: `laravel`). Esa configuración está en [`.lando.yml`](.lando.yml) y tiene prioridad sobre `.env`.
+
+Para restaurar los datos de demostración (**borra lo registrado**):
+
+```bash
 lando artisan migrate:fresh --seed
 ```
 
-* **URL de la Aplicación en Lando:** `http://sparkle-app-w.lndo.site` (o por proxy localhost)
-* **Manejo de Base de Datos (phpMyAdmin):** `http://localhost:8082` o `http://pma.sparkle-app-w.lndo.site`
-  * Servidor: `database`
-  * Usuario: `laravel`
-  * Contraseña: `laravel`
-  * Base de datos: `laravel`
+### Solución de problemas
 
----
+* **`is not connected to the network lando_bridge_network`:**
+  ```bash
+  docker network create lando_bridge_network
+  docker network connect lando_bridge_network landoproxyhyperion5000gandalfedition_proxy_1
+  lando restart
+  ```
+* **Mensajes `Healthcheck ... database FAILED` durante el arranque:** son normales mientras MySQL inicia.
 
-## 🔑 4. Cuentas de Acceso de Demostración
+## 8. Ejecución sin Lando (SQLite)
 
-La aplicación incluye un **Barra de Acceso Rápido Demo** en la parte superior que permite cambiar de rol con un solo clic. También puedes iniciar sesión manualmente con:
-
-| Rol | Correo | Contraseña | Perfil |
-| :--- | :--- | :--- | :--- |
-| **Cliente** | `cliente@sparkle.com` | `password` | María Torres (150 pts acumulados, 1 pedido entregado y 1 en proceso) |
-| **Colaborador** | `operaciones@sparkle.com` | `password` | Carlos Operaciones (Vista operativa de pedidos e inventario) |
-| **Administrador** | `admin@sparkle.com` | `password` | Laura Guzmán (Control total, reportes, precios y usuarios) |
-
----
-
-## 🧪 5. Pruebas Automatizadas
-
-El proyecto incluye una suite completa de pruebas unitarias y de integración que validan los flujos:
+Requiere PHP 8.4.1 o superior y Composer.
 
 ```bash
-php artisan test
+composer install
+cp .env.example .env
+php artisan key:generate
+touch database/database.sqlite
+php artisan migrate --seed
+php artisan serve
 ```
 
-* 10 tests pasados al 100% (32 aserciones).
-* Formato de código verificado con Laravel Pint (`vendor/bin/pint`).
+Abre http://localhost:8000.
+
+---
+
+## 9. Cuentas de demostración
+
+La barra **Modo demo**, en la parte superior, cambia de rol con un clic. También puedes iniciar sesión manualmente (contraseña de todas: `password`).
+
+| Rol | Correo | Nombre |
+| :--- | :--- | :--- |
+| Usuario | `usuario@sparkle.com` | María Torres |
+| Especialista (autor) | `especialista1@sparkle.com` | Dr. Carlos Especialista |
+| Especialista (revisor) | `especialista2@sparkle.com` | Dra. Elena Revisor |
+| Administrador | `admin@sparkle.com` | Laura Administradora |
+
+## 10. Pruebas
+
+```bash
+lando artisan test    # o: php artisan test
+```
+
+Las pruebas usan una base SQLite en memoria, así que no modifican los datos de la aplicación.

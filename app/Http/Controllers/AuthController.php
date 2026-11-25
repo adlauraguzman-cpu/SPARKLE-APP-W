@@ -61,6 +61,9 @@ class AuthController extends Controller
             'consent_datos_personales' => ['required', 'accepted'],
             'consent_bienestar' => ['required', 'accepted'],
         ], [
+            'consent_terminos.required' => 'Debes aceptar los Términos de Servicio.',
+            'consent_datos_personales.required' => 'Debes autorizar el tratamiento de datos personales (Ley 1581 / GDPR).',
+            'consent_bienestar.required' => 'Debes consentir el tratamiento de datos de bienestar y perfil sensorial.',
             'consent_terminos.accepted' => 'Debes aceptar los Términos de Servicio.',
             'consent_datos_personales.accepted' => 'Debes autorizar el tratamiento de datos personales (Ley 1581 / GDPR).',
             'consent_bienestar.accepted' => 'Debes consentir el tratamiento de datos de bienestar y perfil sensorial.',

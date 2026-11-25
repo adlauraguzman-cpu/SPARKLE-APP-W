@@ -147,6 +147,22 @@ class VitaminaFlowTest extends TestCase
         $this->assertDatabaseHas('consentimientos', ['tipo' => 'datos_bienestar', 'aceptado' => true]);
     }
 
+    public function test_validation_errors_are_shown_in_spanish(): void
+    {
+        $response = $this->from('/register')
+            ->followingRedirects()
+            ->post('/register', [
+                'name' => 'Nuevo Usuario',
+                'email' => 'usuario@sparkle.com',
+                'password' => 'corta',
+                'password_confirmation' => 'corta',
+            ]);
+
+        $response->assertSee('Revisa los siguientes datos:');
+        $response->assertSee('Ya existe un registro con ese correo electrónico.');
+        $response->assertSee('El campo contraseña debe tener al menos 8 caracteres.');
+    }
+
     public function test_user_can_save_calculated_formula_and_create_routine(): void
     {
         $user = User::where('email', 'usuario@sparkle.com')->first();
