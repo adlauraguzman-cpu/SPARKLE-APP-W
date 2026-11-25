@@ -17,12 +17,10 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
-            $table->string('telefono')->nullable();
-            $table->string('rol')->default('cliente'); // visitante, cliente, colaborador, administrador
-            $table->boolean('autoriza_datos')->default(true);
-            $table->timestamp('fecha_autoriza_datos')->nullable();
-            $table->integer('puntos_disponibles')->default(0);
+            $table->string('rol')->default('usuario'); // usuario, especialista, administrador
+            $table->string('zona_horaria')->default('America/Bogota');
             $table->boolean('activo')->default(true);
+            $table->timestamp('fecha_registro')->useCurrent();
             $table->rememberToken();
             $table->timestamps();
         });
@@ -48,8 +46,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('users');
-        Schema::dropIfExists('password_reset_tokens');
         Schema::dropIfExists('sessions');
+        Schema::dropIfExists('password_reset_tokens');
+        Schema::dropIfExists('users');
     }
 };

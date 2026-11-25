@@ -2,9 +2,11 @@
 
 namespace App\Models;
 
+// use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -13,76 +15,108 @@ class User extends Authenticatable
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
 
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var list<string>
+     */
     protected $fillable = [
         'name',
         'email',
         'password',
-        'telefono',
         'rol',
-        'autoriza_datos',
-        'fecha_autoriza_datos',
-        'puntos_disponibles',
+        'zona_horaria',
         'activo',
+        'fecha_registro',
     ];
 
+    /**
+     * The attributes that should be hidden for serialization.
+     *
+     * @var list<string>
+     */
     protected $hidden = [
         'password',
         'remember_token',
     ];
 
+    /**
+     * Get the attributes that should be cast.
+     *
+     * @return array<string, string>
+     */
     protected function casts(): array
     {
         return [
             'email_verified_at' => 'datetime',
-            'fecha_autoriza_datos' => 'datetime',
-            'autoriza_datos' => 'boolean',
-            'activo' => 'boolean',
             'password' => 'hashed',
+            'activo' => 'boolean',
+            'fecha_registro' => 'datetime',
         ];
     }
 
-    public function isAdmin(): bool
+    public function isUsuario(): bool
+    {
+        return $this->rol === 'usuario';
+    }
+
+    public function isEspecialista(): bool
+    {
+        return $this->rol === 'especialista';
+    }
+
+    public function isAdministrador(): bool
     {
         return $this->rol === 'administrador';
     }
 
-    public function isColaborador(): bool
+    public function consentimientos(): HasMany
     {
-        return $this->rol === 'colaborador';
+        return $this->hasMany(Consentimiento::class);
     }
 
-    public function isCliente(): bool
+    public function perfilSensorial(): HasOne
     {
-        return $this->rol === 'cliente';
+        return $this->hasOne(PerfilSensorial::class);
     }
 
-    public function canManageInventory(): bool
+    public function perfilSeguridad(): HasOne
     {
-        return in_array($this->rol, ['administrador', 'colaborador']);
+        return $this->hasOne(PerfilSeguridad::class);
     }
 
-    public function direcciones(): HasMany
+    public function espacios(): HasMany
     {
-        return $this->hasMany(Direccion::class);
+        return $this->hasMany(Espacio::class);
     }
 
-    public function pedidos(): HasMany
+    public function registrosAnimo(): HasMany
     {
-        return $this->hasMany(Pedido::class);
+        return $this->hasMany(RegistroAnimo::class);
     }
 
-    public function movimientosPuntos(): HasMany
+    public function sesiones(): HasMany
     {
-        return $this->hasMany(MovimientoPuntos::class);
+        return $this->hasMany(Sesion::class);
     }
 
-    public function resenas(): HasMany
+    public function formulas(): HasMany
     {
-        return $this->hasMany(Resena::class);
+        return $this->hasMany(Formula::class);
     }
 
-    public function carritoItems(): HasMany
+    public function rutinas(): HasMany
     {
-        return $this->hasMany(CarritoItem::class);
+        return $this->hasMany(Rutina::class);
+    }
+
+    public function entradasDiario(): HasMany
+    {
+        return $this->hasMany(EntradaDiario::class);
+    }
+
+    public function registrosCambios(): HasMany
+    {
+        return $this->hasMany(RegistroCambio::class);
     }
 }

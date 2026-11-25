@@ -1,95 +1,71 @@
 <?php
 
-use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
-use App\Http\Controllers\Admin\InventoryController as AdminInventoryController;
-use App\Http\Controllers\Admin\LoyaltyController as AdminLoyaltyController;
-use App\Http\Controllers\Admin\OrderController as AdminOrderController;
-use App\Http\Controllers\Admin\ProductController as AdminProductController;
-use App\Http\Controllers\Admin\ReviewController as AdminReviewController;
-use App\Http\Controllers\Admin\UserController as AdminUserController;
-use App\Http\Controllers\AromaGuideController;
+use App\Http\Controllers\AdminController;
 use App\Http\Controllers\AuthController;
-use App\Http\Controllers\CartController;
-use App\Http\Controllers\CheckoutController;
+use App\Http\Controllers\ConfiguradorController;
+use App\Http\Controllers\DiarioController;
+use App\Http\Controllers\EspecialistaController;
 use App\Http\Controllers\HomeController;
-use App\Http\Controllers\LoyaltyController;
-use App\Http\Controllers\OrderController;
-use App\Http\Controllers\ProductController;
-use App\Http\Controllers\ReviewController;
+use App\Http\Controllers\OnboardingController;
+use App\Http\Controllers\RutinaController;
 use Illuminate\Support\Facades\Route;
 
-// --- RUTAS PÚBLICAS (Visitante sin registro & Cliente) ---
+/*
+|--------------------------------------------------------------------------
+| Web Routes - SPARKLE · MI ESPACIO VITAMINA
+|--------------------------------------------------------------------------
+*/
+
+// Rutas Públicas
 Route::get('/', [HomeController::class, 'index'])->name('home');
-Route::post('/suscribirse', [HomeController::class, 'suscribirse'])->name('suscribirse');
+Route::get('/aromas', [HomeController::class, 'aromas'])->name('aromas.index');
 
-Route::get('/catalogo', [ProductController::class, 'index'])->name('products.index');
-Route::get('/producto/{slug}', [ProductController::class, 'show'])->name('products.show');
-Route::post('/producto/{id}/aviso-stock', [ProductController::class, 'solicitarAvisoStock'])->name('products.aviso-stock');
+// Configurador (Acceso tanto para Invitado como para Usuario registrado)
+Route::get('/configurador', [ConfiguradorController::class, 'index'])->name('configurador.index');
+Route::post('/configurador/calcular', [ConfiguradorController::class, 'calcular'])->name('configurador.calcular');
 
-Route::get('/guia-de-aromas', [AromaGuideController::class, 'index'])->name('guia.index');
-Route::post('/guia-de-aromas/resultado', [AromaGuideController::class, 'resultado'])->name('guia.resultado');
-
-Route::get('/carrito', [CartController::class, 'index'])->name('cart.index');
-Route::post('/carrito/agregar', [CartController::class, 'store'])->name('cart.store');
-Route::post('/carrito/actualizar/{id}', [CartController::class, 'update'])->name('cart.update');
-Route::post('/carrito/eliminar/{id}', [CartController::class, 'destroy'])->name('cart.destroy');
-
-// Autenticación & Acceso Rápido Demo
+// Autenticación y Demostración rápida de roles
 Route::get('/login', [AuthController::class, 'showLogin'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
-Route::get('/registro', [AuthController::class, 'showRegister'])->name('register');
-Route::post('/registro', [AuthController::class, 'register']);
+Route::get('/register', [AuthController::class, 'showRegister'])->name('register');
+Route::post('/register', [AuthController::class, 'register']);
 Route::post('/logout', [AuthController::class, 'logout'])->name('logout');
-Route::get('/demo-login/{rol}', [AuthController::class, 'quickLogin'])->name('demo.login');
+Route::get('/demo-login/{role}', [AuthController::class, 'quickLogin'])->name('demo.login');
 
-// --- RUTAS CLIENTE REGISTRADO (Con cuenta) ---
+// Rutas Protegidas para Usuarios Autenticados
 Route::middleware(['auth'])->group(function () {
-    Route::get('/checkout', [CheckoutController::class, 'index'])->name('checkout.index');
-    Route::post('/checkout/procesar', [CheckoutController::class, 'process'])->name('checkout.process');
-    Route::get('/checkout/confirmacion/{numeroPedido}', [CheckoutController::class, 'confirmacion'])->name('checkout.confirmacion');
+    // Guardar fórmula generada
+    Route::post('/configurador/guardar', [ConfiguradorController::class, 'guardar'])->name('configurador.guardar');
 
-    Route::get('/mis-pedidos', [OrderController::class, 'index'])->name('orders.index');
-    Route::get('/mis-pedidos/{numeroPedido}', [OrderController::class, 'show'])->name('orders.show');
-    Route::post('/mis-pedidos/{numeroPedido}/solicitar-cambio', [OrderController::class, 'solicitarCambio'])->name('orders.cambio');
-    Route::post('/mis-pedidos/{numeroPedido}/repetir', [OrderController::class, 'repetirPedido'])->name('orders.repetir');
+    // Onboarding sensorial y de seguridad
+    Route::get('/onboarding', [OnboardingController::class, 'index'])->name('onboarding.index');
+    Route::post('/onboarding', [OnboardingController::class, 'store'])->name('onboarding.store');
 
-    Route::get('/mis-puntos', [LoyaltyController::class, 'index'])->name('loyalty.index');
-    Route::post('/mis-puntos/canjear/{id}', [LoyaltyController::class, 'canjear'])->name('loyalty.canjear');
+    // Rutinas y Reproductor de Ritual Sensorial
+    Route::get('/rutinas', [RutinaController::class, 'index'])->name('rutinas.index');
+    Route::get('/rutinas/crear', [RutinaController::class, 'create'])->name('rutinas.create');
+    Route::post('/rutinas', [RutinaController::class, 'store'])->name('rutinas.store');
+    Route::post('/rutinas/{rutina}/toggle', [RutinaController::class, 'toggle'])->name('rutinas.toggle');
+    Route::post('/rutinas/{rutina}/simular-recordatorio', [RutinaController::class, 'simularRecordatorio'])->name('rutinas.simular');
+    Route::get('/rutinas/{rutina}/ritual', [RutinaController::class, 'ritual'])->name('rutinas.ritual');
 
-    Route::post('/resenas', [ReviewController::class, 'store'])->name('reviews.store');
+    // Diario de Experiencias y Seguimiento de Racha
+    Route::get('/diario', [DiarioController::class, 'index'])->name('diario.index');
+    Route::post('/diario', [DiarioController::class, 'store'])->name('diario.store');
 });
 
-// --- RUTAS DE GESTIÓN INTERNA (Colaborador & Administrador) ---
-Route::middleware(['auth', 'role:administrador,colaborador'])->prefix('admin')->name('admin.')->group(function () {
-    Route::get('/', [AdminDashboardController::class, 'index'])->name('dashboard');
-
-    // Inventario
-    Route::get('/inventario', [AdminInventoryController::class, 'index'])->name('inventario.index');
-    Route::post('/inventario/ajustar', [AdminInventoryController::class, 'ajustar'])->name('inventario.ajustar');
-
-    // Pedidos
-    Route::get('/pedidos', [AdminOrderController::class, 'index'])->name('pedidos.index');
-    Route::get('/pedidos/{id}', [AdminOrderController::class, 'show'])->name('pedidos.show');
-    Route::post('/pedidos/{id}/enviar', [AdminOrderController::class, 'registrarEnvio'])->name('pedidos.enviar');
-    Route::post('/pedidos/{id}/entregar', [AdminOrderController::class, 'marcarEntregado'])->name('pedidos.entregar');
+// Rutas Especialista en Aromas (Maker-Checker, reglas de afinidad, métricas agregadas)
+Route::middleware(['auth', 'role:especialista'])->prefix('especialista')->name('especialista.')->group(function () {
+    Route::get('/', [EspecialistaController::class, 'index'])->name('index');
+    Route::post('/reglas', [EspecialistaController::class, 'storeRegla'])->name('reglas.store');
+    Route::post('/reglas/{regla}/aprobar', [EspecialistaController::class, 'aprobarRegla'])->name('reglas.aprobar');
+    Route::post('/simular', [EspecialistaController::class, 'simular'])->name('simular');
 });
 
-// --- RUTAS EXCLUSIVAS DE ADMINISTRADOR (Dueña de la marca) ---
+// Rutas Administrador (Métricas globales, gobernanza de roles, ARCO/GDPR, auditoría. Sin acceso a diarios privados)
 Route::middleware(['auth', 'role:administrador'])->prefix('admin')->name('admin.')->group(function () {
-    Route::post('/inventario/umbral/{id}', [AdminInventoryController::class, 'actualizarUmbral'])->name('inventario.umbral');
-    Route::post('/pedidos/{id}/anular', [AdminOrderController::class, 'anular'])->name('pedidos.anular');
-
-    Route::resource('productos', AdminProductController::class);
-
-    Route::get('/fidelizacion', [AdminLoyaltyController::class, 'index'])->name('fidelizacion.index');
-    Route::post('/fidelizacion/recompensas', [AdminLoyaltyController::class, 'store'])->name('fidelizacion.store');
-    Route::post('/fidelizacion/recompensas/{id}/toggle', [AdminLoyaltyController::class, 'toggle'])->name('fidelizacion.toggle');
-
-    Route::get('/resenas', [AdminReviewController::class, 'index'])->name('resenas.index');
-    Route::post('/resenas/{id}/toggle', [AdminReviewController::class, 'toggleEstado'])->name('resenas.toggle');
-    Route::delete('/resenas/{id}', [AdminReviewController::class, 'destroy'])->name('resenas.destroy');
-
-    Route::get('/usuarios', [AdminUserController::class, 'index'])->name('usuarios.index');
-    Route::post('/usuarios', [AdminUserController::class, 'store'])->name('usuarios.store');
-    Route::post('/usuarios/{id}/rol', [AdminUserController::class, 'cambiarRol'])->name('usuarios.rol');
+    Route::get('/', [AdminController::class, 'index'])->name('index');
+    Route::post('/usuarios/{usuario}', [AdminController::class, 'updateUsuario'])->name('usuarios.update');
+    Route::get('/consentimientos', [AdminController::class, 'consentimientos'])->name('consentimientos');
+    Route::get('/usuarios/{usuario}/exportar', [AdminController::class, 'exportarDatos'])->name('usuarios.exportar');
 });

@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Consentimiento;
 use App\Models\User;
-use App\Services\CartService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -12,130 +12,96 @@ use Illuminate\View\View;
 
 class AuthController extends Controller
 {
-    public function __construct(
-        protected CartService $cartService
-    ) {}
-
-    public function showLogin(Request $request): View
+    public function showLogin(): View
     {
-        $redirect = $request->query('redirect');
-
-        return view('pages.auth.login', compact('redirect'));
+        return view('auth.login');
     }
 
     public function login(Request $request): RedirectResponse
     {
         $credentials = $request->validate([
-            'email' => 'required|email',
-            'password' => 'required',
-        ], [
-            'email.required' => 'Ingresa tu correo registrado.',
-            'password.required' => 'Ingresa tu contraseña.',
+            'email' => ['required', 'email'],
+            'password' => ['required', 'string'],
         ]);
 
         if (Auth::attempt($credentials, $request->boolean('remember'))) {
             $request->session()->regenerate();
             $user = Auth::user();
 
-            // Migrar ítems del carrito de invitado a la cuenta del usuario
-            $this->cartService->migrateGuestCartToUser($user->id);
+            if (! $user->activo) {
+                Auth::logout();
 
-            if ($request->filled('redirect') && $request->input('redirect') === 'checkout') {
-                return redirect()->route('checkout.index');
+                return back()->withErrors(['email' => 'Tu cuenta ha sido deshabilitada por administración.']);
             }
 
-            if ($user->isAdmin() || $user->isColaborador()) {
-                return redirect()->route('admin.dashboard');
-            }
-
-            return redirect()->intended(route('home'))->with('success', "¡Bienvenida de nuevo, {$user->name}!");
+            return match ($user->rol) {
+                'especialista' => redirect()->intended(route('especialista.index')),
+                'administrador' => redirect()->intended(route('admin.index')),
+                default => redirect()->intended(route('configurador.index')),
+            };
         }
 
-        return back()->withInput($request->only('email'))->withErrors([
+        return back()->withErrors([
             'email' => 'Las credenciales no coinciden con nuestros registros.',
-        ]);
+        ])->onlyInput('email');
     }
 
-    public function showRegister(Request $request): View
+    public function showRegister(): View
     {
-        $redirect = $request->query('redirect');
-
-        return view('pages.auth.register', compact('redirect'));
+        return view('auth.register');
     }
 
     public function register(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'name' => 'required|string|max:120',
-            'email' => 'required|string|email|max:180|unique:users',
-            'telefono' => 'required|regex:/^[0-9]{10}$/',
-            'password' => 'required|string|min:6|confirmed',
-            'autoriza_datos' => 'accepted',
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'string', 'email', 'max:255', 'unique:users'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'consent_terminos' => ['required', 'accepted'],
+            'consent_datos_personales' => ['required', 'accepted'],
+            'consent_bienestar' => ['required', 'accepted'],
         ], [
-            'name.required' => 'Indica tu nombre completo.',
-            'email.required' => 'Tu correo electrónico es obligatorio.',
-            'email.unique' => 'Este correo ya tiene una cuenta registrada.',
-            'telefono.required' => 'El teléfono / WhatsApp es obligatorio para el seguimiento de tu pedido.',
-            'telefono.regex' => 'El teléfono debe contener exactamente 10 dígitos numéricos.',
-            'password.required' => 'Crea una contraseña segura.',
-            'password.min' => 'La contraseña debe tener al menos 6 caracteres.',
-            'password.confirmed' => 'La confirmación de contraseña no coincide.',
-            'autoriza_datos.accepted' => 'Debes autorizar el tratamiento de datos para crear tu cuenta y acumular puntos.',
+            'consent_terminos.accepted' => 'Debes aceptar los Términos de Servicio.',
+            'consent_datos_personales.accepted' => 'Debes autorizar el tratamiento de datos personales (Ley 1581 / GDPR).',
+            'consent_bienestar.accepted' => 'Debes consentir el tratamiento de datos de bienestar y perfil sensorial.',
         ]);
 
         $user = User::create([
             'name' => $validated['name'],
             'email' => $validated['email'],
-            'telefono' => $validated['telefono'],
             'password' => Hash::make($validated['password']),
-            'rol' => 'cliente',
-            'autoriza_datos' => true,
-            'fecha_autoriza_datos' => now(),
-            'puntos_disponibles' => 50, // Bono de bienvenida en puntos
+            'rol' => 'usuario',
+            'zona_horaria' => 'America/Bogota',
             'activo' => true,
+            'fecha_registro' => now(),
+        ]);
+
+        // Registrar consentimientos legales
+        Consentimiento::create([
+            'user_id' => $user->id,
+            'tipo' => 'terminos',
+            'aceptado' => true,
+            'version_del_texto' => '2.0',
+            'fecha' => now(),
+        ]);
+        Consentimiento::create([
+            'user_id' => $user->id,
+            'tipo' => 'datos_personales',
+            'aceptado' => true,
+            'version_del_texto' => '2.0',
+            'fecha' => now(),
+        ]);
+        Consentimiento::create([
+            'user_id' => $user->id,
+            'tipo' => 'datos_bienestar',
+            'aceptado' => true,
+            'version_del_texto' => '2.0',
+            'fecha' => now(),
         ]);
 
         Auth::login($user);
-        $request->session()->regenerate();
 
-        $this->cartService->migrateGuestCartToUser($user->id);
-
-        if ($request->filled('redirect') && $request->input('redirect') === 'checkout') {
-            return redirect()->route('checkout.index');
-        }
-
-        return redirect()->route('home')->with('success', '¡Cuenta creada con éxito! Te obsequiamos 50 puntos de bienvenida para tus compras.');
-    }
-
-    /**
-     * Acceso rápido para demostración y evaluación de roles.
-     */
-    public function quickLogin(string $rol): RedirectResponse
-    {
-        $email = match ($rol) {
-            'admin' => 'admin@sparkle.com',
-            'colaborador' => 'operaciones@sparkle.com',
-            'cliente' => 'cliente@sparkle.com',
-            default => null,
-        };
-
-        if (! $email) {
-            return back()->with('error', 'Rol no válido.');
-        }
-
-        $user = User::where('email', $email)->first();
-        if ($user) {
-            Auth::login($user);
-            request()->session()->regenerate();
-
-            if ($user->isAdmin() || $user->isColaborador()) {
-                return redirect()->route('admin.dashboard')->with('success', "Ingresaste como {$user->name} ({$user->rol})");
-            }
-
-            return redirect()->route('home')->with('success', "Ingresaste como {$user->name} ({$user->rol})");
-        }
-
-        return back()->with('error', 'Usuario de demostración no encontrado.');
+        return redirect()->route('onboarding.index')->with('success', '¡Cuenta creada! Configuremos tu perfil sensorial para calibrar tus fórmulas.');
     }
 
     public function logout(Request $request): RedirectResponse
@@ -144,6 +110,33 @@ class AuthController extends Controller
         $request->session()->invalidate();
         $request->session()->regenerateToken();
 
-        return redirect()->route('home')->with('info', 'Has cerrado tu sesión.');
+        return redirect()->route('home')->with('info', 'Has cerrado sesión correctamente.');
+    }
+
+    /**
+     * Quick demo login for evaluation.
+     */
+    public function quickLogin(string $role): RedirectResponse
+    {
+        $email = match ($role) {
+            'usuario' => 'usuario@sparkle.com',
+            'especialista' => 'especialista1@sparkle.com',
+            'revisor' => 'especialista2@sparkle.com',
+            'admin' => 'admin@sparkle.com',
+            default => 'usuario@sparkle.com',
+        };
+
+        $user = User::where('email', $email)->first();
+        if ($user) {
+            Auth::login($user);
+
+            return match ($user->rol) {
+                'especialista' => redirect()->route('especialista.index')->with('success', "Accediste como {$user->name} ({$user->rol})"),
+                'administrador' => redirect()->route('admin.index')->with('success', "Accediste como {$user->name} ({$user->rol})"),
+                default => redirect()->route('configurador.index')->with('success', "Accediste como {$user->name} ({$user->rol})"),
+            };
+        }
+
+        return redirect()->route('login')->with('error', 'Usuario demo no encontrado.');
     }
 }
